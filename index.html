@@ -31,17 +31,17 @@ const ctx = canvas.getContext('2d');
 canvas.width = 1080; canvas.height = 1920;
 
 // --- PERSPEKTIV-KONSTANTEN ---
-const HORIZON_Y = 880;     // Punkt, an dem Objekte erscheinen (Skyline-Horizont)
-const SPAWN_Y = 850;       // Startpunkt für die Berechnung
-const PLAYER_Y = 1600;     // Die Ebene, auf der der Spieler steht
-const LANE_SPREAD = 500;   // Wie weit die Spuren unten auseinandergehen
+const HORIZON_Y = 880; 
+const SPAWN_Y = 850; 
+const PLAYER_Y = 1600; 
+const LANE_SPREAD = 500; 
 
 // --- GLOBALE VARIABLEN ---
-let gameState = 'LOADING'; 
+let gameState = 'LOADING'; // LOADING, INTRO, START, TUTORIAL, PLAYING, BOSS_ALERT, BOSS, etc.
 let difficulty = 'PROFI';
 let score = 0, playerHP = 3, bossHP = 10;
 let currentLevel = 1, playerLane = 1, bossLane = 1, selectedGender = 'm';
-let frameCount = 0, timeLeft = 0, gameSpeedFactor = 0.007; // Basis-Geschwindigkeit für Pseudo-3D
+let frameCount = 0, timeLeft = 0, gameSpeedFactor = 0.007;
 let visualX = 540; 
 
 const channelLink = "https://whatsapp.com/channel/0029Vakref7E50Uf6qbO6545";
@@ -100,9 +100,15 @@ function handleEnd(e) {
         gameState = 'START';
     } 
     else if (gameState === 'START') {
-        if (y < 1550) { selectedGender = (x < 540) ? 'm' : 'f'; startRun(); }
+        if (y < 1550) { 
+            selectedGender = (x < 540) ? 'm' : 'f'; 
+            gameState = 'TUTORIAL'; // WECHSEL ZUM TUTORIAL
+        }
         else { window.open(channelLink, '_blank'); }
     } 
+    else if (gameState === 'TUTORIAL') {
+        startRun(); // STARTET DAS EIGENTLICHE SPIEL
+    }
     else if (gameState === 'BOSS_ALERT') {
         gameState = 'BOSS'; 
     }
@@ -140,7 +146,6 @@ function startRun() {
     gameSpeedFactor = c.speedMod;
     timeLeft = c.times[0];
     obstacles = []; projectiles = []; bossProjectiles = [];
-    if(audio.main.paused) audio.main.play();
 }
 
 function shareGame() {
@@ -152,15 +157,12 @@ function update() {
     if (gameState === 'PLAYING' || gameState === 'BOSS') {
         frameCount++;
         const c = config[difficulty];
-        
-        // Sanftes Gleiten des Spielers
         let targetX = 540 + (playerLane - 1) * LANE_SPREAD;
         visualX += (targetX - visualX) * 0.2; 
 
         if (gameState === 'PLAYING') {
             timeLeft -= 1/60;
             if (timeLeft <= 0) { gameState = 'GAMEOVER_CLEAN'; audio.main.pause(); audio.lose.play(); }
-            
             if (frameCount % c.agentDensity === 0) {
                 let type = (Math.random() > 0.4) ? 'gate' : 'agent';
                 obstacles.push({type, lane: Math.floor(Math.random()*3), progress: 0});
@@ -176,10 +178,8 @@ function update() {
             if (frameCount % 70 === 0) bossProjectiles.push({lane: bossLane, progress: 0});
         }
 
-        // UPDATE OBSTACLES (Perspektivisch)
         obstacles.forEach((o, i) => {
             o.progress += gameSpeedFactor;
-            // Kollisions-Check im Fenster von 85% bis 95% Fortschritt
             if (o.progress > 0.85 && o.progress < 0.95 && o.lane === playerLane) {
                 if (o.type === 'gate') { score += 20; obstacles.splice(i, 1); }
                 else { score = Math.max(0, score - 25); obstacles.splice(i, 1); }
@@ -187,7 +187,6 @@ function update() {
             if (o.progress >= 1.1) obstacles.splice(i, 1);
         });
 
-        // UPDATE BOSS PROJECTILES (Perspektivisch)
         bossProjectiles.forEach((bp, i) => {
             bp.progress += gameSpeedFactor + 0.005;
             if (bp.progress > 0.85 && bp.progress < 0.95 && bp.lane === playerLane) {
@@ -197,7 +196,6 @@ function update() {
             if (bp.progress >= 1.1) bossProjectiles.splice(i, 1);
         });
 
-        // Eigene Projektile (Lineare Bewegung nach oben)
         projectiles.forEach((p, i) => {
             p.y -= 45;
             if (gameState === 'BOSS' && p.y < 500 && p.lane === bossLane) {
@@ -214,6 +212,35 @@ function draw() {
     
     if (gameState === 'INTRO') ctx.drawImage(images.sc_intro, 0, 0, 1080, 1920);
     else if (gameState === 'START') ctx.drawImage(images.sc_start, 0, 0, 1080, 1920);
+    
+    // --- TUTORIAL OVERLAY ---
+    else if (gameState === 'TUTORIAL') {
+        ctx.drawImage(images.bg1, 0, 0, 1080, 1920);
+        ctx.fillStyle = "rgba(0,0,0,0.85)";
+        ctx.fillRect(0, 0, 1080, 1920);
+        
+        ctx.strokeStyle = "#FFD700"; ctx.lineWidth = 10;
+        ctx.strokeRect(80, 400, 920, 1100);
+
+        ctx.fillStyle = "#FFD700"; ctx.font = "bold 70px Arial"; ctx.textAlign = "center";
+        ctx.fillText("SO WIRD GESPIELT", 540, 520);
+
+        // Icons & Erklärungen
+        ctx.drawImage(images.gate, 200, 600, 200, 200);
+        ctx.fillStyle = "#00FF00"; ctx.font = "bold 50px Arial"; ctx.textAlign = "left";
+        ctx.fillText("SAMMELN (+20)", 450, 720);
+
+        ctx.drawImage(images.agent, 200, 850, 200, 200);
+        ctx.fillStyle = "#FF0000"; ctx.fillText("AUSWEICHEN (-25)", 450, 970);
+
+        ctx.fillStyle = "white"; ctx.font = "40px Arial"; ctx.textAlign = "center";
+        ctx.fillText("Wische nach LINKS oder RECHTS", 540, 1150);
+        ctx.fillText("um die Spur zu wechseln.", 540, 1210);
+
+        ctx.fillStyle = "#FFD700"; ctx.font = "bold 60px Arial";
+        ctx.fillText("[ TIPPE ZUM STARTEN ]", 540, 1400);
+    }
+
     else if (gameState === 'PLAYING' || gameState === 'BOSS' || gameState === 'BOSS_ALERT') {
         let bg = (gameState === 'BOSS' || gameState === 'BOSS_ALERT') ? images.bg4 : images['bg' + currentLevel];
         ctx.drawImage(bg, 0, 0, 1080, 1920);
@@ -224,7 +251,6 @@ function draw() {
             ctx.fillStyle = "#FFD700"; ctx.fillRect(340, 130, (400 / config[difficulty].bossHP) * bossHP, 25);
         }
 
-        // --- DRAW OBSTACLES (Pseudo-3D) ---
         obstacles.forEach(o => {
             let size = 300 * o.progress;
             let drawX = 540 + (o.lane - 1) * LANE_SPREAD * o.progress;
@@ -232,7 +258,6 @@ function draw() {
             ctx.drawImage(o.type === 'gate' ? images.gate : images.agent, drawX - size/2, drawY - size/2, size, size);
         });
 
-        // --- DRAW BOSS PROJECTILES (Pseudo-3D) ---
         bossProjectiles.forEach(bp => {
             let size = 250 * bp.progress;
             let drawX = 540 + (bp.lane - 1) * LANE_SPREAD * bp.progress;
@@ -240,16 +265,13 @@ function draw() {
             ctx.drawImage(images.proj_syn, drawX - size/2, drawY - size/2, size, size);
         });
 
-        // Eigene Projektile
         projectiles.forEach(p => {
             ctx.drawImage(images.proj_ty, 540 + (p.lane - 1) * LANE_SPREAD - 50, p.y, 100, 200);
         });
 
-        // Schatten & Runner
         ctx.drawImage(images.fx_shadow, visualX - 100, 1650, 200, 100);
         ctx.drawImage(images['runner_' + selectedGender], visualX - 140, 1380, 280, 340);
 
-        // UI
         let ui = (gameState === 'BOSS' || gameState === 'BOSS_ALERT') ? images.ui_hp : images.ui_score;
         ctx.drawImage(ui, 50, 50, 400, 150);
         ctx.fillStyle = "black"; ctx.font = "bold 70px Arial"; ctx.textAlign = "center";
@@ -263,7 +285,6 @@ function draw() {
             ctx.shadowBlur = 0; 
         }
 
-        // BOSS ALERT OVERLAY
         if (gameState === 'BOSS_ALERT') {
             ctx.fillStyle = "rgba(0,0,0,0.92)";
             ctx.fillRect(0, 0, 1080, 1920);
@@ -272,19 +293,7 @@ function draw() {
             ctx.fillStyle = "#FFD700"; ctx.font = "bold 60px Arial"; ctx.textAlign = "center";
             ctx.fillText("✨ GEMEINSAM SIND WIR STARK!", 540, 650); 
             ctx.fillStyle = "white"; ctx.font = "38px Arial";
-            const lines = [
-                "Ihr habt genug Kolleg:innen versammelt!",
-                "Als geschlossene Gemeinschaft seid ihr nun bereit.",
-                "",
-                "Setzt allen Gegenargumenten die Power eurer",
-                "gelben Herzen entgegen.",
-                "",
-                "Anleitung: Weiche den Angriffen aus und tippe auf",
-                "den Bildschirm, um Herzen der Solidarität zu senden!",
-                "",
-                "",
-                "[ Tippe zum Starten ]"
-            ];
+            const lines = ["Ihr habt genug Kollegen versammelt!", "Als geschlossene Gemeinschaft seid ihr bereit.", "", "Setzt allen Gegenargumenten die Power", "eurer gelben Herzen entgegen.", "", "Tippe zum Senden von Solidarität!", "", "", "[ Tippe zum Starten ]"];
             lines.forEach((l, i) => ctx.fillText(l, 540, 770 + i * 52));
         }
     } 
